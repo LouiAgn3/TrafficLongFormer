@@ -26,7 +26,6 @@ import os
 import sys
 import argparse
 import random
-import subprocess
 import tempfile
 from pathlib import Path
 from collections import defaultdict
@@ -35,7 +34,8 @@ import dpkt
 
 
 def extract_7z_files(input_dir):
-    """Extract all .7z files in-place (creates .pcap next to the .7z)."""
+    """Extract all .7z files in-place using py7zr."""
+    import py7zr
     extracted = []
     for root, dirs, files in os.walk(input_dir):
         for fname in files:
@@ -43,23 +43,10 @@ def extract_7z_files(input_dir):
                 archive = os.path.join(root, fname)
                 print(f"  Extracting {archive}...")
                 try:
-                    subprocess.run(
-                        ["7z", "x", "-y", f"-o{root}", archive],
-                        check=True, capture_output=True,
-                    )
+                    with py7zr.SevenZipFile(archive, mode='r') as z:
+                        z.extractall(path=root)
                     extracted.append(archive)
-                except FileNotFoundError:
-                    # Try p7zip alternative
-                    try:
-                        subprocess.run(
-                            ["7za", "x", "-y", f"-o{root}", archive],
-                            check=True, capture_output=True,
-                        )
-                        extracted.append(archive)
-                    except FileNotFoundError:
-                        print(f"  WARNING: 7z/7za not found, cannot extract {fname}")
-                        print(f"           Install with: apt install p7zip-full")
-                except subprocess.CalledProcessError as e:
+                except Exception as e:
                     print(f"  WARNING: Failed to extract {fname}: {e}")
     return extracted
 

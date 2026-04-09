@@ -29,7 +29,7 @@ from model.long_context_traffic_model import TrafficLongFormer
 from data.flow_dataset import FlowDataset, collate_flows
 
 
-def evaluate(model, dataloader, device):
+def evaluate(model, dataloader, device, criterion=None):
     model.eval()
     all_preds, all_labels = [], []
     total_loss = 0.0
@@ -44,9 +44,12 @@ def evaluate(model, dataloader, device):
                 directions=batch["directions"],
                 sizes=batch["sizes"],
                 num_packets=batch["num_packets"],
-                labels=batch["labels"],
             )
-            total_loss += outputs["loss"].item()
+            if criterion is not None:
+                loss = criterion(outputs["logits"], batch["labels"])
+                total_loss += loss.item()
+            else:
+                total_loss += outputs.get("loss", torch.tensor(0.0)).item()
             n_batches += 1
             preds = outputs["logits"].argmax(dim=-1)
             all_preds.extend(preds.cpu().numpy())
@@ -117,6 +120,16 @@ def main():
     num_classes = train_ds.num_classes
     print(f"Classes: {num_classes} — {train_ds.label_names}")
     print(f"Train: {len(train_ds)}, Val: {len(val_ds)}, Test: {len(test_ds)}")
+
+    # Compute class weights for imbalanced data
+    class_counts = np.zeros(num_classes)
+    for _, label_idx in train_ds.samples:
+        class_counts[label_idx] += 1
+    class_weights = 1.0 / np.maximum(class_counts, 1)
+    class_weights = class_weights / class_weights.sum() * num_classes  # normalize
+    class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
+    print(f"Class weights: {class_weights.cpu().numpy()}")
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
 
     # Model
     fcfg = config["model"]["flow_encoder"]
@@ -196,9 +209,8 @@ def main():
                         directions=batch["directions"],
                         sizes=batch["sizes"],
                         num_packets=batch["num_packets"],
-                        labels=batch["labels"],
                     )
-                    loss = outputs["loss"]
+                    loss = criterion(outputs["logits"], batch["labels"])
                 optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
@@ -212,9 +224,8 @@ def main():
                     directions=batch["directions"],
                     sizes=batch["sizes"],
                     num_packets=batch["num_packets"],
-                    labels=batch["labels"],
                 )
-                loss = outputs["loss"]
+                loss = criterion(outputs["logits"], batch["labels"])
                 optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), tcfg["max_grad_norm"])
@@ -228,7 +239,7 @@ def main():
                       f"loss={running_loss / (step + 1):.4f}")
 
         # Validate
-        val_metrics = evaluate(model, val_loader, device)
+        val_metrics = evaluate(model, val_loader, device, criterion)
         elapsed = time.time() - t0
         print(f"Epoch {epoch+1}/{tcfg['epochs']} ({elapsed:.0f}s) | "
               f"train_loss={running_loss / len(train_loader):.4f} | "
@@ -256,7 +267,7 @@ def main():
     # Test with best model
     best_ckpt = torch.load(os.path.join(args.output_dir, "best_model.pt"), map_location=device)
     model.load_state_dict(best_ckpt["model_state_dict"])
-    test_metrics = evaluate(model, test_loader, device)
+    test_metrics = evaluate(model, test_loader, device, criterion)
 
     print(f"\n{'='*60}")
     print(f"TEST RESULTS (seed={args.seed}):")
