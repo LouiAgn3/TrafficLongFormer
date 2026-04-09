@@ -1,0 +1,37 @@
+# Fine-tuning configuration for TrafficLongFormer
+model:
+  pretrained_path: null    # Path to pre-trained TrafficLongFormer checkpoint
+  packet_encoder:
+    freeze: false          # Unfreeze for end-to-end fine-tuning
+  flow_encoder:
+    hidden_size: 768
+    num_layers: 6
+    num_heads: 12
+    window_size: 16
+    max_packets: 200
+
+# Fine-tuning
+training:
+  batch_size: 64
+  epochs: 10
+  early_stop: 4
+  learning_rate: 6.0e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: true
+  num_workers: 4
+
+# Data
+data:
+  train_path: null
+  dev_path: null
+  test_path: null
+  max_packets: 200
+  packet_bytes: 64
+  start_index: 76          # Skip Eth+IP+TCP headers for finetuning (38 bytes * 2)
+
+# Evaluation
+evaluation:
+  metrics: ["accuracy", "f1_macro", "f1_micro", "f1_weighted", "precision_macro", "recall_macro"]
+  seeds: [7, 42, 123, 256, 512]  # For statistical significance

@@ -1,0 +1,68 @@
+# Pre-training configuration for TrafficLongFormer
+model:
+  # Packet encoder (frozen TrafficFormer BERT)
+  packet_encoder:
+    pretrained_path: null  # Path to TrafficFormer pretrained model
+    vocab_path: null       # Path to TrafficFormer BPE vocabulary
+    hidden_size: 768
+    freeze: true           # Freeze packet encoder initially
+
+  # Flow encoder (Longformer-style)
+  flow_encoder:
+    hidden_size: 768
+    num_layers: 6
+    num_heads: 12
+    feedforward_size: 3072
+    dropout: 0.1
+    window_size: 16        # Sliding window attention size
+    max_packets: 200       # Maximum packets per flow
+    global_attention_stride: 8  # Global attention every N packets
+
+  # Temporal encoding
+  temporal:
+    time2vec_dim: 64
+    temporal_bias_hidden: 64
+    metadata_features: 6   # ipt_prev, ipt_next, direction, pkt_size, cum_bytes, rel_pos
+
+# Pre-training tasks
+tasks:
+  mbm:
+    enabled: true
+    mask_prob: 0.15
+    lambda: 1.0
+  sodf:
+    enabled: true
+    num_classes: 5
+    lambda: 1.0
+  dfp:
+    enabled: true
+    target_positions: [10, 20, 50]
+    num_field_classes: 32
+    lambda: 0.5
+  iptp:
+    enabled: true
+    num_buckets: 6         # <1ms, 1-10ms, 10-100ms, 100ms-1s, 1-10s, >10s
+    lambda: 0.5
+  tov:
+    enabled: true
+    swap_prob: 0.5
+    lambda: 0.3
+
+# Training
+training:
+  batch_size: 32
+  total_steps: 100000
+  save_steps: 10000
+  learning_rate: 5.0e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: true
+  num_workers: 4
+
+# Data
+data:
+  corpus_path: null        # Path to pre-training corpus
+  max_packets: 200
+  packet_bytes: 64
+  start_index: 28          # Skip Ethernet header (14 bytes * 2 hex chars)
