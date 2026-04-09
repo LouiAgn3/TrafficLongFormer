@@ -78,6 +78,8 @@ class TrafficFormerPacketEncoder(nn.Module):
             remove_attention_scale=False,
             layernorm="normal",
             is_moe=False,
+            spm_model_path=None,
+            tokenizer="bert",
         )
 
         # Load tokenizer/vocab
