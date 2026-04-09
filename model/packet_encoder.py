@@ -163,9 +163,11 @@ class SimplePacketEncoder(nn.Module):
         num_layers: int = 4,
         num_heads: int = 8,
         max_bytes: int = 64,
+        chunk_size: int = 32,
     ):
         super().__init__()
         self.hidden_size = hidden_size
+        self.chunk_size = chunk_size  # Process packets in chunks to save memory
 
         self.byte_embedding = nn.Embedding(257, hidden_size)  # 0-255 + padding
         self.pos_embedding = nn.Embedding(max_bytes + 1, hidden_size)  # +1 for CLS
@@ -191,24 +193,31 @@ class SimplePacketEncoder(nn.Module):
             packet_embeds: (batch, num_packets, hidden_size)
         """
         batch_size, num_packets, max_bytes = packet_bytes.shape
+
+        # Process packets in chunks to avoid OOM
+        all_cls = []
         flat_bytes = packet_bytes.view(batch_size * num_packets, max_bytes)
 
-        # Byte embedding + positional
-        byte_emb = self.byte_embedding(flat_bytes)
-        positions = torch.arange(1, max_bytes + 1, device=flat_bytes.device)
-        pos_emb = self.pos_embedding(positions).unsqueeze(0)
-        emb = byte_emb + pos_emb
+        for start in range(0, flat_bytes.size(0), self.chunk_size):
+            end = min(start + self.chunk_size, flat_bytes.size(0))
+            chunk = flat_bytes[start:end]
 
-        # Prepend CLS token
-        cls = self.cls_token.expand(flat_bytes.size(0), -1, -1)
-        cls_pos = self.pos_embedding(torch.zeros(1, dtype=torch.long, device=flat_bytes.device))
-        cls = cls + cls_pos.unsqueeze(0)
-        emb = torch.cat([cls, emb], dim=1)  # (batch*num_pkts, max_bytes+1, hidden)
+            # Byte embedding + positional
+            byte_emb = self.byte_embedding(chunk)
+            positions = torch.arange(1, max_bytes + 1, device=chunk.device)
+            pos_emb = self.pos_embedding(positions).unsqueeze(0)
+            emb = byte_emb + pos_emb
 
-        # Encode
-        hidden = self.encoder(emb)
-        hidden = self.layer_norm(hidden)
+            # Prepend CLS token
+            cls = self.cls_token.expand(chunk.size(0), -1, -1)
+            cls_pos = self.pos_embedding(torch.zeros(1, dtype=torch.long, device=chunk.device))
+            cls = cls + cls_pos.unsqueeze(0)
+            emb = torch.cat([cls, emb], dim=1)
 
-        # Extract CLS
-        cls_output = hidden[:, 0, :]
+            # Encode
+            hidden = self.encoder(emb)
+            hidden = self.layer_norm(hidden)
+            all_cls.append(hidden[:, 0, :])
+
+        cls_output = torch.cat(all_cls, dim=0)
         return cls_output.view(batch_size, num_packets, self.hidden_size)

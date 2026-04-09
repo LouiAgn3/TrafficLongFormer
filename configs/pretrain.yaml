@@ -15,7 +15,7 @@ model:
     feedforward_size: 3072
     dropout: 0.1
     window_size: 16        # Sliding window attention size
-    max_packets: 200       # Maximum packets per flow
+    max_packets: 50        # Maximum packets per flow (reduced for GPU memory)
     global_attention_stride: 8  # Global attention every N packets
 
   # Temporal encoding
@@ -63,6 +63,6 @@ training:
 # Data
 data:
   corpus_path: null        # Path to pre-training corpus
-  max_packets: 200
+  max_packets: 50
   packet_bytes: 64
   start_index: 28          # Skip Ethernet header (14 bytes * 2 hex chars)
