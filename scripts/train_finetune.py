@@ -168,7 +168,10 @@ def main():
         return max(0.0, 1.0 - (step - warmup_steps) / (total_train_steps - warmup_steps))
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-    scaler = torch.amp.GradScaler("cuda") if tcfg.get("fp16") and device.type == "cuda" else None
+    try:
+        scaler = torch.amp.GradScaler("cuda") if tcfg.get("fp16") and device.type == "cuda" else None
+    except AttributeError:
+        scaler = torch.cuda.amp.GradScaler() if tcfg.get("fp16") and device.type == "cuda" else None
 
     os.makedirs(args.output_dir, exist_ok=True)
     best_f1 = 0.0
@@ -184,7 +187,7 @@ def main():
             batch = {k: v.to(device) for k, v in batch.items()}
 
             if scaler is not None:
-                with torch.amp.autocast("cuda"):
+                with torch.cuda.amp.autocast():
                     outputs = model(
                         packet_bytes=batch["packet_bytes"],
                         timestamps=batch["timestamps"],

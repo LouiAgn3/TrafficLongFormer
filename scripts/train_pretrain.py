@@ -172,7 +172,10 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    scaler = torch.amp.GradScaler("cuda") if tcfg.get("fp16") and device.type == "cuda" else None
+    try:
+        scaler = torch.amp.GradScaler("cuda") if tcfg.get("fp16") and device.type == "cuda" else None
+    except AttributeError:
+        scaler = torch.cuda.amp.GradScaler() if tcfg.get("fp16") and device.type == "cuda" else None
 
     # Resume
     global_step = 0
@@ -220,7 +223,7 @@ def main():
 
             # Forward
             if scaler is not None:
-                with torch.amp.autocast("cuda"):
+                with torch.cuda.amp.autocast():
                     outputs = model(
                         packet_bytes=packet_bytes,
                         timestamps=modified_ts,
