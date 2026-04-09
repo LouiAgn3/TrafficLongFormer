@@ -158,10 +158,20 @@ def main():
     #   USTC-TFC2016/Malware/Cridex.pcap (extracted from Cridex.7z)
     pcap_by_class = defaultdict(list)
 
+    # Merge split classes (SMB-1/SMB-2 -> SMB, Weibo-1/2/3/4 -> Weibo)
+    # and skip classes with too few flows
+    CLASS_MERGE = {
+        "SMB-1": "SMB", "SMB-2": "SMB",
+        "Weibo-1": "Weibo", "Weibo-2": "Weibo", "Weibo-3": "Weibo", "Weibo-4": "Weibo",
+    }
+    SKIP_CLASSES = {"Outlook"}  # Only 1 flow
+
     for f in sorted(input_dir.rglob("*")):
         if f.is_file() and f.suffix.lower() in {".pcap", ".pcapng", ".cap"}:
-            # Class name = filename stem (e.g., BitTorrent.pcap -> BitTorrent)
             class_name = f.stem
+            class_name = CLASS_MERGE.get(class_name, class_name)
+            if class_name in SKIP_CLASSES:
+                continue
             pcap_by_class[class_name].append(f)
 
     if not pcap_by_class:
