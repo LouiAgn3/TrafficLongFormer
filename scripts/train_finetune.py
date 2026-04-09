@@ -139,10 +139,12 @@ def main():
         # Filter to base_model keys (strip "base_model." prefix from pretraining checkpoint)
         base_state = {}
         for k, v in state.items():
-            if k.startswith("base_model."):
-                base_state[k.replace("base_model.", "")] = v
-            else:
-                base_state[k] = v
+            clean_k = k.replace("base_model.", "") if k.startswith("base_model.") else k
+            # Skip classifier weights (size mismatch expected) and task heads
+            if clean_k.startswith("classifier.") or clean_k.startswith("dfp_head.") or \
+               clean_k.startswith("iptp_head.") or clean_k.startswith("tov_head."):
+                continue
+            base_state[clean_k] = v
         missing, unexpected = model.load_state_dict(base_state, strict=False)
         print(f"Loaded pre-trained weights: {len(base_state)} keys")
         if missing:

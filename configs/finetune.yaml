@@ -8,11 +8,11 @@ model:
     num_layers: 6
     num_heads: 12
     window_size: 16
-    max_packets: 200
+    max_packets: 50
 
 # Fine-tuning
 training:
-  batch_size: 64
+  batch_size: 8
   epochs: 10
   early_stop: 4
   learning_rate: 6.0e-5
@@ -27,9 +27,9 @@ data:
   train_path: null
   dev_path: null
   test_path: null
-  max_packets: 200
+  max_packets: 50
   packet_bytes: 64
-  start_index: 76          # Skip Eth+IP+TCP headers for finetuning (38 bytes * 2)
+  start_index: 28          # Match pre-training start_index
 
 # Evaluation
 evaluation:
