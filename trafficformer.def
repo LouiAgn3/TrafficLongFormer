@@ -1,0 +1,67 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:23.10-py3
+
+%labels
+    Maintainer Louis Agnese
+    Project LongContextTraffic
+    Version 1.0
+    Description TrafficFormer extension - long-context timing-aware traffic pre-training
+
+%post
+    # Create bind points required by UTS iHPC
+    mkdir -p /data /project /scratch
+
+    # System packages for pcap parsing
+    apt-get update && apt-get install -y --no-install-recommends \
+        libpcap-dev \
+        tshark \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Core ML packages (PyTorch already included in the base image)
+    pip install --no-cache-dir \
+        transformers==4.40.0 \
+        tokenizers==0.19.1 \
+        accelerate
+
+    # Packet parsing
+    pip install --no-cache-dir \
+        scapy \
+        dpkt
+
+    # Data science
+    pip install --no-cache-dir \
+        pandas \
+        matplotlib \
+        seaborn \
+        scikit-learn \
+        scipy
+
+    # Utilities
+    pip install --no-cache-dir \
+        einops \
+        pyyaml \
+        omegaconf \
+        tqdm \
+        rich \
+        tensorboard \
+        jupyter \
+        ipykernel
+
+%environment
+    export LC_ALL=C
+    export LANG=C
+    export PYTHONWARNINGS="ignore::UserWarning"
+    # Point cache directories to /data so they persist and don't fill /tmp
+    export HF_HOME=/data/${USER}/.cache/huggingface
+    export TORCH_HOME=/data/${USER}/.cache/torch
+
+%runscript
+    echo "Long-Context Traffic Container Loaded."
+    exec python "$@"
+
+%test
+    python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+    python -c "import transformers; print(f'Transformers {transformers.__version__}')"
+    python -c "import scapy.all; print('Scapy OK')"
+    python -c "import dpkt; print('dpkt OK')"
+    echo "All tests passed"
